@@ -1,0 +1,28 @@
+# Vision-Guided Sorting Workcell: Optical Gantry & Robot Interface Architecture
+
+### 1. Electrical & Optical Subsystem Specifications
+* **Industrial Vision Sensor:** Basler ace acA1920-40gm (GigE Vision, Sony IMX249 1/1.2" CMOS, $1920\times1200$, global shutter).
+* **Optical Polarization Conditioning:**
+  * Polarizer Array ($\mathbf{P}_1$): High-transmission linear polarizing sheets mounted over dual high-output LED bar illuminators ($\theta_{\text{pol}} = 0^\circ$).
+  * Camera Analyzer ($\mathbf{P}_2$): High-extinction optical C-mount linear polarizing filter fixed to the 16mm low-distortion lens ($\theta_{\text{ana}} = 90^\circ$).
+* **Strobe Controller:** High-speed LED strobe overdrive controller (Gardasoft / CCS) triggered via optocoupled 24V line.
+* **Conveyor Motion Encoder:** Autonics E40S6 incremental rotary encoder (1024 PPR, line driver output) coupled to the conveyor drive roller for real-time tracking.
+* **Workcell Power Supply:** 24V DC, 10A regulated industrial DIN rail power supply (Mean Well NDR-240-24).
+
+---
+
+### 2. Functional System Interconnect
+
+```text
+  [ 230V AC Single Phase Incomer ] ──► [ 24V DC 10A Industrial SMPS ]
+                                                   │
+         ┌─────────────────────────────────────────┴─────────────────────────────────────────┐
+         ▼                                         ▼                                         ▼
+  [ Industrial Edge IPC ]                [ Gardasoft Strobe Driver ]               [ 6-DOF Robot Controller ]
+   (Advantech / Intel i7)                           │                               (KUKA / ABB / UR)
+         │                                         ▼                                         │
+         ├──► GigE Vision (PoE / RJ-45) ──► Basler CMOS Camera                               │
+         ├──► Line Driver In ◄──────────── Conveyor Rotary Encoder (1024 PPR)                │
+         ├──► Opto Input ◄──────────────── Photoelectric Part Ingress Sensor                │
+         │                                                                                   │
+         └──► Isolated RS-422 / Ethernet (OPC UA / ROS 2 DDS) ───────────────────────────────┘
