@@ -1,0 +1,93 @@
+%% =========================================================================
+%  VISION-GUIDED SORTING: CONVEYOR INTERCEPTION KINEMATICS & TIMING SIMULATOR
+%  Models moving workpiece trajectory, eye-to-hand registration (AX = XB),
+%  and 6-DOF manipulator minimum-jerk trajectory interception under 1s budget.
+% =========================================================================
+clear; clc; close all;
+
+%% 1. CONVEYOR & CAMERA WORKSTATION SPECIFICATIONS
+v_conveyor      = 0.30;       % Belt speed: 0.30 m/s (300 mm/s)
+d_cam_to_robot  = 0.550;      % Distance along conveyor from camera origin to robot origin (m)
+y_part_nominal  = 0.040;      % Lateral workpiece position on belt (m)
+rz_part_deg     = 42.5;       % Vision-extracted workpiece orientation (deg)
+
+% Cycle Time Constraint: Total period < 1.0 second
+t_vision_latency = 0.022;     % PCA vision extraction + communication latency (22 ms)
+t_robot_accel    = 0.120;     % Robot controller motion planning ramp (120 ms)
+
+%% 2. EYE-TO-HAND EXTRINSIC CALIBRATION MATRIX (AX = XB)
+% Camera-to-Robot Transformation: [R_cam2rob, t_cam2rob]
+R_cam2rob = [ 0,  1,  0;
+             -1,  0,  0;
+              0,  0,  1 ]; % 90-degree planar alignment
+t_cam2rob = [0.550; 0.000; 0.280]; % Translates 550mm X, 280mm vertical Z
+
+T_cam2rob = [R_cam2rob, t_cam2rob; 0, 0, 0, 1];
+
+%% 3. DYNAMIC INTERCEPTION PROFILE
+% Workpiece position at trigger t = 0s in Camera Frame: P_cam = [x; y; z; 1]
+P_cam = [0.000; y_part_nominal; 0.000; 1.0];
+P_rob_initial = T_cam2rob * P_cam;
+
+% Target Interception Time Window
+t_flight = 0.650; % Robot completes grasp at t = 650 ms (well within < 1.0s)
+t_grasp_total = t_vision_latency + t_flight;
+
+% Predicted Intercept Point in Robot Coordinates
+x_intercept = P_rob_initial(1) + (v_conveyor * t_grasp_total);
+y_intercept = P_rob_initial(2);
+z_intercept = 0.015; % Grasp height (15 mm above belt surface)
+
+fprintf('====================================================================\n');
+fprintf('     VISION SORTING: CONVEYOR INTERCEPTION KINEMATICS SIMULATION    \n');
+fprintf('====================================================================\n');
+fprintf('Conveyor Belt Linear Velocity  : %.2f m/s (%.1f mm/s)\n', v_conveyor, v_conveyor * 1000);
+fprintf('Total Vision + Comms Latency   : %.1f ms\n', t_vision_latency * 1000);
+fprintf('Planned Manipulator Flight Time: %.1f ms\n', t_flight * 1000);
+fprintf('Total Complete Cycle Period    : %.1f ms (< 1000 ms Target)\n', t_grasp_total * 1000);
+fprintf('Predicted Grasp Intercept (X,Y): (%.3f m, %.3f m)\n', x_intercept, y_intercept);
+fprintf('Target Grasp Orientation (rZ)  : %.2f degrees\n', rz_part_deg);
+fprintf('====================================================================\n');
+
+%% 4. ROBOT MINIMUM-JERK TRAJECTORY GENERATION (Quintic Polynomial)
+time_vec = linspace(0, t_flight, 200);
+s = (time_vec / t_flight);
+% Quintic polynomial: 10*s^3 - 15*s^4 + 6*s^5
+poly_pos = 10*(s.^3) - 15*(s.^4) + 6*(s.^5);
+
+% Robot end-effector trajectories starting from hover standby [0.35, 0.0, 0.20]
+p_standby = [0.350; 0.000; 0.200];
+p_target  = [x_intercept; y_intercept; z_intercept];
+
+ee_traj = p_standby + (p_target - p_standby) * poly_pos;
+
+% Workpiece actual ground motion during cycle
+part_x_ground = P_rob_initial(1) + v_conveyor * (t_vision_latency + time_vec);
+part_y_ground = repmat(y_intercept, 1, length(time_vec));
+
+%% 5. TRAJECTORY VISUALIZATION
+figure('Color', [0.1 0.1 0.1], 'Position', [100, 100, 1050, 600]);
+
+subplot(2, 2, [1 3]);
+plot(part_x_ground, part_y_ground, '--', 'Color', [1 0.8 0], 'LineWidth', 2.0); hold on;
+plot(ee_traj(1, :), ee_traj(2, :), 'Color', [0 1 1], 'LineWidth', 2.2);
+plot(x_intercept, y_intercept, 'p', 'Color', [0 1 0], 'MarkerSize', 14, 'MarkerFaceColor', 'g');
+grid on; xlabel('X Position (m)'); ylabel('Y Position (m)');
+title('2D Planar Interception: Moving Part vs. Robot Tool Path', 'Color', 'w');
+legend({'Moving Workpiece Track', 'Manipulator Tool Trajectory', 'Interception Grasp Lock'}, ...
+       'TextColor', 'w', 'Color', [0.2 0.2 0.2], 'Location', 'NorthWest');
+set(gca, 'Color', [0.15 0.15 0.15], 'XColor', 'w', 'YColor', 'w');
+axis equal;
+
+subplot(2, 2, 2);
+plot(time_vec * 1000, ee_traj(3, :) * 1000, 'Color', [1 0.3 0.3], 'LineWidth', 2.0); grid on;
+title('Tool Height Z Descent Profile (mm)', 'Color', 'w');
+xlabel('Flight Time (ms)'); ylabel('Z Height (mm)');
+set(gca, 'Color', [0.15 0.15 0.15], 'XColor', 'w', 'YColor', 'w');
+
+subplot(2, 2, 4);
+plot(time_vec * 1000, (part_x_ground - ee_traj(1, :)) * 1000, 'Color', [0.2 1 0.2], 'LineWidth', 2.0); grid on;
+yline(0, '--r');
+title('Tracking Error Envelope \Delta X (mm)', 'Color', 'w');
+xlabel('Flight Time (ms)'); ylabel('Position Error (mm)');
+set(gca, 'Color', [0.15 0.15 0.15], 'XColor', 'w', 'YColor', 'w');
