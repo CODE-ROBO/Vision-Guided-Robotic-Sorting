@@ -1,0 +1,12 @@
+Item No,Category,Component Name,Part Number / Model,Operating Voltage,Protocol / Interface,Functionality,Qty,Ref Designator
+1,Vision,Industrial CMOS Camera,Basler ace acA1920-40gm,12-24V DC (PoE),GigE Vision (RJ-45),High-resolution global shutter frame capture,1,CAM1
+2,Vision,Low-Distortion Lens,Computar 16mm f/1.4 C-Mount,Passive,C-Mount Thread,Optical image projection with low barrel distortion,1,LENS1
+3,Optics,Linear Polarizing Sheet,Edmund Optics High Contrast Linear Film,Passive,Physical Sheet,Linear polarization filter for LED array (0 deg),2,POL_ARRAY
+4,Optics,C-Mount Polarizing Analyzer,MidOpt PR032 Linear Polarizing Filter,Passive,M25.5 Thread,Rotatable cross-polarizer for camera lens (90 deg),1,POL_ANALYZER
+5,Illumination,High-Output LED Bar Lights,Smart Vision Lights S75 Bar Light,24V DC Strobe,24V PWM / Strobe,High-intensity white illumination gantry,2,LED_BAR1-2
+6,Control,Digital Strobe Controller,Gardasoft CC320 Trigger Controller,24V DC,Optocoupled Trigger In,Overdrive microsecond pulsing of LED bars,1,STROBE_CTRL
+7,Sensing,Incremental Optical Encoder,Autonics E40S6-1024-3-T-24,12-24V DC,RS-422 Line Driver,Real-time conveyor belt displacement tracking,1,ENC1
+8,Sensing,Photoelectric Ingress Gate,Sick GL6-P4211 Thru-Beam Sensor,10-30V DC,PNP NO (24V),Workpiece arrival optical interrupt,1,PE_TRIG
+9,Compute,Industrial Fanless Edge PC,Advantech MIC-770V2 / Intel i7-10700E,24V DC,Dual GbE / PCIe PCIe-DIO,Real-time PCA orientation & OPC UA server,1,IPC1
+10,Power,DIN-Rail Power Supply,Mean Well NDR-240-24 (24V / 10A / 240W),230V AC to 24V DC,Screw Terminals,Main workcell regulated DC power supply,1,PSU1
+11,Protection,Optocoupled Relay Breakout,Phoenix Contact RIF-0-RSC-24DC/21,24V DC Coil,Dry Contact Relay,Safety interlock and discrete controller handshake,4,RLY1-RLY4
