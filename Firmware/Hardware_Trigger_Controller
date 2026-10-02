@@ -1,0 +1,73 @@
+/**
+ * =============================================================================
+ * Vision-Guided Sorting: Real-Time Hardware Trigger & Strobe Synchronizer
+ * Target Platform: ATmega328P / STM32F4 / Arduino Industrial
+ * 
+ * Functionality:
+ * - Listens for photoelectric part ingress interrupts (< 10 us response).
+ * - Generates synchronized, microsecond-accurate camera trigger and LED strobe pulses.
+ * - Enforces minimum refractory dwell to prevent double-strobing on reflective metal edges.
+ * =============================================================================
+ */
+
+#include <Arduino.h>
+
+// Hardware Pin Assignments
+constexpr uint8_t PIN_PE_INGRESS_SENSOR = 2; // External Interrupt 0 (24V via Optocoupler)
+constexpr uint8_t PIN_CAMERA_TRIGGER    = 9; // High-speed TTL output to Camera Opto-In
+constexpr uint8_t PIN_STROBE_OVERDRIVE  = 10; // High-speed TTL output to Strobe Driver
+constexpr uint8_t PIN_STATUS_LED        = 13;
+
+// Strobe & Exposure Timing Parameters
+constexpr uint32_t STROBE_PULSE_WIDTH_US  = 450;  // 450 microseconds LED overdrive pulse
+constexpr uint32_t CAMERA_EXPOSURE_LAG_US = 25;   // Pre-trigger delay before illumination
+constexpr uint32_t MIN_INTER_PART_DWELL_MS = 250; // Refractory lockout (max 4 parts/sec)
+
+volatile bool trigger_requested = false;
+volatile uint32_t last_trigger_time_ms = 0;
+
+void IRAM_ATTR onPartIngressISR() {
+  uint32_t now = millis();
+  if (now - last_trigger_time_ms >= MIN_INTER_PART_DWELL_MS) {
+    trigger_requested = true;
+    last_trigger_time_ms = now;
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(PIN_PE_INGRESS_SENSOR, INPUT_PULLUP);
+  pinMode(PIN_CAMERA_TRIGGER, OUTPUT);
+  pinMode(PIN_STROBE_OVERDRIVE, OUTPUT);
+  pinMode(PIN_STATUS_LED, OUTPUT);
+
+  digitalWrite(PIN_CAMERA_TRIGGER, LOW);
+  digitalWrite(PIN_STROBE_OVERDRIVE, LOW);
+  digitalWrite(PIN_STATUS_LED, LOW);
+
+  attachInterrupt(digitalPinToInterrupt(PIN_PE_INGRESS_SENSOR), onPartIngressISR, FALLING);
+  Serial.println(F("[STROBE_ENGINE] Synchronizer Armed & Online."));
+}
+
+void loop() {
+  if (trigger_requested) {
+    trigger_requested = false;
+    digitalWrite(PIN_STATUS_LED, HIGH);
+
+    // 1. Fire Camera Exposure Trigger (Rising Edge)
+    digitalWrite(PIN_CAMERA_TRIGGER, HIGH);
+    delayMicroseconds(CAMERA_EXPOSURE_LAG_US);
+
+    // 2. Pulse High-Intensity Cross-Polarized LED Strobe
+    digitalWrite(PIN_STROBE_OVERDRIVE, HIGH);
+    delayMicroseconds(STROBE_PULSE_WIDTH_US);
+    digitalWrite(PIN_STROBE_OVERDRIVE, LOW);
+
+    // 3. Close Camera Trigger
+    digitalWrite(PIN_CAMERA_TRIGGER, LOW);
+    digitalWrite(PIN_STATUS_LED, LOW);
+
+    Serial.println(F("[TRIGGER_EVENT] Synchronized exposure executed."));
+  }
+}
