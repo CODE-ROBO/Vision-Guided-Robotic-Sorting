@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""
+Vision-Guided Sorting: OPC UA Vendor-Neutral Telemetry Server & ROS 2 Bridge
+Serves real-time workpiece coordinates (X, Y, rZ, part_id, timestamp)
+over an IEC 62541 OPC UA address space for seamless robot integration.
+"""
+
+import time
+import sys
+from opcua import Server, ua
+
+class SortingWorkcellOPCUAServer:
+    def __init__(self, endpoint="opc.tcp://0.0.0.0:4840/sorting/server/", uri="http://rscoe.robotics.sorting"):
+        self.server = Server()
+        self.server.set_endpoint(endpoint)
+        self.server.set_server_name("Industrial Vision Sorting Telemetry Server")
+
+        # Setup namespace
+        self.idx = self.server.register_namespace(uri)
+        self.objects = self.server.get_objects_node()
+
+        # Build Information Model Node Tree
+        self.sorting_cell = self.objects.add_object(self.idx, "SortingCell")
+        
+        # Telemetry Variables
+        self.var_part_id = self.sorting_cell.add_variable(self.idx, "PartID", 0, ua.VariantType.Int32)
+        self.var_pos_x = self.sorting_cell.add_variable(self.idx, "PosX_mm", 0.0, ua.VariantType.Double)
+        self.var_pos_y = self.sorting_cell.add_variable(self.idx, "PosY_mm", 0.0, ua.VariantType.Double)
+        self.var_yaw_rz = self.sorting_cell.add_variable(self.idx, "Yaw_rZ_deg", 0.0, ua.VariantType.Double)
+        self.var_confidence = self.sorting_cell.add_variable(self.idx, "Confidence", 0.0, ua.VariantType.Double)
+        self.var_timestamp = self.sorting_cell.add_variable(self.idx, "Timestamp_ms", 0, ua.VariantType.Int64)
+        self.var_new_target = self.sorting_cell.add_variable(self.idx, "NewTargetReady", False, ua.VariantType.Boolean)
+
+        # Allow robot controller write-back access for handshake
+        self.var_new_target.set_writable()
+
+    def start(self):
+        self.server.start()
+        print("[INFO] OPC UA Sorting Server initialized on port 4840.")
+
+    def stop(self):
+        self.server.stop()
+        print("[INFO] OPC UA Sorting Server stopped.")
+
+    def publish_target_pose(self, part_id: int, x_mm: float, y_mm: float, rz_deg: float, confidence: float):
+        now_ms = int(time.time() * 1000)
+        
+        self.var_part_id.set_value(ua.Variant(part_id, ua.VariantType.Int32))
+        self.var_pos_x.set_value(ua.Variant(round(x_mm, 3), ua.VariantType.Double))
+        self.var_pos_y.set_value(ua.Variant(round(y_mm, 3), ua.VariantType.Double))
+        self.var_yaw_rz.set_value(ua.Variant(round(rz_deg, 3), ua.VariantType.Double))
+        self.var_confidence.set_value(ua.Variant(round(confidence, 3), ua.VariantType.Double))
+        self.var_timestamp.set_value(ua.Variant(now_ms, ua.VariantType.Int64))
+        self.var_new_target.set_value(ua.Variant(True, ua.VariantType.Boolean))
+
+        print(f"[OPC_UA_DISPATCH] Part #{part_id} -> X: {x_mm:.2f}mm | Y: {y_mm:.2f}mm | rZ: {rz_deg:.2f}°")
+
+if __name__ == "__main__":
+    opc_node = SortingWorkcellOPCUAServer()
+    opc_node.start()
+    try:
+        sample_id = 101
+        while True:
+            # Simulate dispatching periodic vision-extracted coordinate vectors
+            opc_node.publish_target_pose(sample_id, 245.8, -12.4, 38.65, 0.985)
+            sample_id += 1
+            time.sleep(1.0)
+    except KeyboardInterrupt:
+        opc_node.stop()
+        sys.exit(0)
